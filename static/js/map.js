@@ -331,6 +331,16 @@ function createSearchMarker() {
   return marker;
 }
 
+var searchControlURI = 'search_control';
+function searchControl(action) {
+  $.post(searchControlURI + '?action='+encodeURIComponent(action));
+}
+function updateSearchStatus() {
+  $.getJSON(searchControlURI).then(function(data){
+    $('#search-switch').prop('checked', data.status);
+  })
+}
+
 function initSidebar() {
   $('#gyms-switch').prop('checked', Store.get('showGyms'));
   $('#pokemon-switch').prop('checked', Store.get('showPokemon'));
@@ -342,6 +352,9 @@ function initSidebar() {
   $('#sound-switch').prop('checked', Store.get('playSound'));
   var searchBox = new google.maps.places.SearchBox(document.getElementById('next-location'));
   $("#next-location").css("background-color", $('#geoloc-switch').prop('checked') ? "#e0e0e0" : "#ffffff");
+
+  updateSearchStatus();
+  setInterval(updateSearchStatus,5000);
 
   searchBox.addListener('places_changed', function() {
     var places = searchBox.getPlaces();
@@ -738,12 +751,12 @@ function showInBoundsMarkers(markers) {
     var marker = markers[key].marker;
     var show = false;
     if (!markers[key].hidden) {
-      if (typeof marker.getPosition === 'function') {
-        if (map.getBounds().contains(marker.getPosition())) {
+      if (typeof marker.getBounds === 'function') {
+        if (map.getBounds().intersects(marker.getBounds())) {
           show = true;
         }
-      } else if (typeof marker.getCenter === 'function') {
-        if (map.getBounds().contains(marker.getCenter())) {
+      } else if (typeof marker.getPosition === 'function') {
+        if (map.getBounds().contains(marker.getPosition())) {
           show = true;
         }
       }
@@ -1113,7 +1126,7 @@ function centerMap(lat, lng, zoom) {
 function i8ln(word) {
   if ($.isEmptyObject(i8ln_dictionary) && language != "en" && language_lookups < language_lookup_threshold) {
     $.ajax({
-      url: "static/locales/" + language + ".json",
+      url: "static/dist/locales/" + language + ".min.json",
       dataType: 'json',
       async: false,
       success: function(data) {
@@ -1151,16 +1164,16 @@ $(function() {
 $(function() {
   // populate Navbar Style menu
   $selectStyle = $("#map-style")
-	
-  // Load Stylenames from locale and populate lists
-  $.getJSON("static/locales/mapstyle." + language + ".json").done(function(data){
+
+  // Load Stylenames, translate entries, and populate lists
+  $.getJSON("static/dist/data/mapstyle.min.json").done(function(data){
     var styleList = []
 
     $.each(data, function(key, value){
-    styleList.push( { id: key, text: value } );
+    styleList.push( { id: key, text: i8ln(value) } );
   });
-		
-		
+
+
   // setup the stylelist
   $selectStyle.select2({
     placeholder: "Select Style",
@@ -1173,8 +1186,8 @@ $(function() {
     map.setMapTypeId(selectedStyle);
     Store.set('map_style', selectedStyle);
   });
-		
-		
+
+
   // recall saved mapstyle
   $selectStyle.val(Store.get('map_style')).trigger("change");
 
@@ -1198,7 +1211,7 @@ $(function() {
   var numberOfPokemon = 151;
 
   // Load pokemon names and populate lists
-  $.getJSON("static/locales/pokemon.json").done(function(data) {
+  $.getJSON("static/dist/data/pokemon.min.json").done(function(data) {
     var pokeList = [];
 
     $.each(data, function(key, value) {
@@ -1208,7 +1221,7 @@ $(function() {
       var _types = [];
       pokeList.push({
         id: key,
-        text: value['name'] + ' - #' + key
+        text: i8ln(value['name']) + ' - #' + key
       });
       value['name'] = i8ln(value['name']);
       value['rarity'] = i8ln(value['rarity']);
@@ -1336,4 +1349,9 @@ $(function() {
     else
       Store.set('geoLocate', this.checked);
   });
+
+  $('#search-switch').change(function() {
+    searchControl(this.checked?'on':'off');
+  });
+
 });
