@@ -25,7 +25,7 @@ class Pogom(Flask):
         self.json_encoder = CustomJSONEncoder
         self.route("/", methods=['GET'])(self.pagelogin)
         self.route("/login", methods=['POST'])(self.userlogin)
-        self.route("/register", methods=['GET'])(self.createUser)
+        self.route("/register556", methods=['GET'])(self.createUser)
         self.route("/map", methods=['GET'])(self.fullmap)
         self.route("/raw_data", methods=['GET'])(self.raw_data)
         self.route("/loc", methods=['GET'])(self.loc)
