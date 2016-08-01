@@ -12,6 +12,9 @@ var idToPokemon = {};
 var i8ln_dictionary = {};
 var language_lookups = 0;
 var language_lookup_threshold = 3;
+var session = getCookie("session");
+var baseURL = location.protocol + "//" + location.hostname + (location.port ? ":" + location.port : "");
+
 
 var excludedPokemon = [];
 var notifiedPokemon = [];
@@ -198,6 +201,25 @@ var Store = {
 //
 // Functions
 //
+
+function getCookie(cookieName) {
+  var cookies = document.cookie;
+  var splitCookies = cookies.split(";");
+  var jsonStringCookies = "{"
+  for(var i = 0; i < splitCookies.length; i++) {
+    var temp = splitCookies[i].split("=");
+    if (i == splitCookies.length - 1)
+      var value = "\"" + temp[0] + "\":\"" + temp[1] + "\"";
+    else
+      var value = "\"" + temp[0] + "\":\"" + temp[1] + "\",";
+    jsonStringCookies += value;
+  }
+
+  jsonStringCookies += "}";
+  var jsonCookies = JSON.parse(jsonStringCookies);
+
+  return jsonCookies[cookieName];
+}
 
 function excludePokemon(id) {
   $selectExclude.val(
@@ -797,6 +819,9 @@ function loadRawData() {
       'neLat': neLat,
       'neLng': neLng
     },
+    headers: {
+      'session': session,
+    },
     dataType: "json",
     cache: false,
     beforeSend: function() {
@@ -927,19 +952,24 @@ function processScanned(i, item) {
 
 function updateMap() {
   loadRawData().done(function(result) {
-    $.each(result.pokemons, processPokemons);
-    $.each(result.pokestops, processPokestops);
-    $.each(result.pokestops, processLuredPokemon);
-    $.each(result.gyms, processGyms);
-    $.each(result.scanned, processScanned);
-    showInBoundsMarkers(map_data.pokemons);
-    showInBoundsMarkers(map_data.lure_pokemons);
-    showInBoundsMarkers(map_data.gyms);
-    showInBoundsMarkers(map_data.pokestops);
-    showInBoundsMarkers(map_data.scanned);
-    clearStaleMarkers();
-    if ($("#stats").hasClass("visible")) {
-      countMarkers();
+    if(result.response == "accepted") {
+      $.each(result.pokemons, processPokemons);
+      $.each(result.pokestops, processPokestops);
+      $.each(result.pokestops, processLuredPokemon);
+      $.each(result.gyms, processGyms);
+      $.each(result.scanned, processScanned);
+      showInBoundsMarkers(map_data.pokemons);
+      showInBoundsMarkers(map_data.lure_pokemons);
+      showInBoundsMarkers(map_data.gyms);
+      showInBoundsMarkers(map_data.pokestops);
+      showInBoundsMarkers(map_data.scanned);
+      clearStaleMarkers();
+      if ($("#stats").hasClass("visible")) {
+        countMarkers();
+      }
+    }
+    else {
+      window.location = baseURL + "/";
     }
   });
 }
@@ -1269,7 +1299,6 @@ $(function() {
   window.setInterval(function() {
     if (navigator.geolocation && Store.get('geoLocate')) {
       navigator.geolocation.getCurrentPosition(function(position) {
-        var baseURL = location.protocol + "//" + location.hostname + (location.port ? ":" + location.port : "");
         var lat = position.coords.latitude;
         var lon = position.coords.longitude;
 

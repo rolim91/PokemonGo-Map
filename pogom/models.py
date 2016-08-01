@@ -6,12 +6,13 @@ import os
 import time
 from peewee import Model, SqliteDatabase, InsertQuery,\
                    IntegerField, CharField, DoubleField, BooleanField,\
-                   DateTimeField, OperationalError, create_model_tables
+                   DateTimeField, OperationalError, IntegrityError, create_model_tables
 from playhouse.flask_utils import FlaskDB
 from playhouse.pool import PooledMySQLDatabase
 from playhouse.shortcuts import RetryOperationalError
 from datetime import datetime, timedelta
 from base64 import b64encode
+import hashlib
 
 from . import config
 from .utils import get_pokemon_name, get_pokemon_rarity, get_pokemon_types, get_args, send_to_webhook
@@ -48,6 +49,7 @@ def init_database(app):
     return db
 
 
+
 class BaseModel(flaskDb.Model):
 
     @classmethod
@@ -59,6 +61,74 @@ class BaseModel(flaskDb.Model):
                     transform_from_wgs_to_gcj(
                         result['latitude'], result['longitude'])
         return results
+
+
+class Session(BaseModel):
+
+    sessionkey = CharField(unique=True)
+    logindate = DateTimeField(default=datetime.now())
+    expiration = DateTimeField(default=datetime.now() + timedelta(days=30))
+
+    class Meta:
+        order_by = ('sessionkey',)
+
+    @classmethod
+    def create_session(cls, currUser, currPass):
+
+        value = currUser + currPass + str(datetime.now())
+        hashedValue = hashlib.md5(value).hexdigest()
+
+        try:
+            Session.create(
+                sessionkey=hashedValue
+            )
+            return hashedValue
+        except IntegrityError:
+            return None;
+
+    @classmethod
+    def verify_session(cls, currKey):
+
+        query = Session.select().where(Session.sessionkey == currKey)
+
+        if query.exists():
+            return True;
+        else:
+            return False;
+
+class Account(BaseModel):
+
+    user_id = IntegerField(primary_key=True)
+    username = CharField(unique=True);
+    password = CharField();
+
+    class Meta:
+        order_by = ('user_id',)
+
+    @classmethod
+    def create_user(cls, currUser, currPass):
+        try:
+            Account.create(
+                username=currUser,
+                password=hashlib.md5(currPass).hexdigest()
+            )
+            return "True";
+        except IntegrityError:
+            return "False";
+
+    @classmethod
+    def verify_user(cls, currUser, currPass):
+
+        hashPass = hashlib.md5(currPass).hexdigest()
+        query = Account.select().where(Account.username == currUser, Account.password == hashPass)
+
+        if query.exists():
+            sessionkey = Session.create_session(currUser, currPass)
+            # log.info(sessionkey)
+            return sessionkey;
+        else:
+            return None;
+
 
 
 class Pokemon(BaseModel):
@@ -365,9 +435,11 @@ def bulk_upsert(cls, data):
     flaskDb.close_db(None)
 
 
+
+
 def create_tables(db):
     db.connect()
-    db.create_tables([Pokemon, Pokestop, Gym, ScannedLocation], safe=True)
+    db.create_tables([Session, Account, Pokemon, Pokestop, Gym, ScannedLocation], safe=True)
     db.close()
 
 def drop_tables(db):

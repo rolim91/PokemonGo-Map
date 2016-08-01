@@ -4,7 +4,7 @@
 import calendar
 import logging
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, redirect, url_for
 from flask.json import JSONEncoder
 from flask_compress import Compress
 from datetime import datetime
@@ -12,7 +12,7 @@ from s2sphere import *
 from pogom.utils import get_args
 
 from . import config
-from .models import Pokemon, Gym, Pokestop, ScannedLocation
+from .models import Session, Account, Pokemon, Gym, Pokestop, ScannedLocation
 
 log = logging.getLogger(__name__)
 compress = Compress()
@@ -23,7 +23,10 @@ class Pogom(Flask):
         super(Pogom, self).__init__(import_name, **kwargs)
         compress.init_app(self)
         self.json_encoder = CustomJSONEncoder
-        self.route("/", methods=['GET'])(self.fullmap)
+        self.route("/", methods=['GET'])(self.pagelogin)
+        self.route("/login", methods=['POST'])(self.userlogin)
+        self.route("/register", methods=['GET'])(self.createUser)
+        self.route("/map", methods=['GET'])(self.fullmap)
         self.route("/raw_data", methods=['GET'])(self.raw_data)
         self.route("/loc", methods=['GET'])(self.loc)
         self.route("/next_loc", methods=['POST'])(self.next_loc)
@@ -52,6 +55,47 @@ class Pogom(Flask):
             return jsonify({'message':'invalid use of api'})
         return self.get_search_control()
 
+    def pagelogin(self):
+
+        # log.info('Login Page')
+        return render_template('login.html')
+
+    def userlogin(self):
+
+        d = {}
+
+        if 'session' in request.form:
+            sessionkey = request.form['session']
+            # log.info(sessionkey)
+
+            if Session.verify_session(sessionkey):  
+                d['response'] = "accepted"
+
+                return jsonify(d)
+
+        else:
+            username = request.form['username']
+            password = request.form['password']
+
+            sessionkey = Account.verify_user(username, password)
+            if sessionkey:
+                d['response'] = "accepted"
+                d['session'] = sessionkey
+                d['redirect'] = "/map"
+
+                return jsonify(d)
+
+        d['response'] = "fail"
+        return jsonify(d);
+
+    def createUser(self):
+
+        username = request.args.get('username')
+        password = request.args.get('password')
+
+        return Account.create_user(username, password)
+
+
     def fullmap(self):
         args = get_args()
         fixed_display = "none" if args.fixed_location else "inline"
@@ -72,23 +116,30 @@ class Pogom(Flask):
         swLng = request.args.get('swLng')
         neLat = request.args.get('neLat')
         neLng = request.args.get('neLng')
-        if request.args.get('pokemon', 'true') == 'true':
-            if request.args.get('ids'):
-                ids = [int(x) for x in request.args.get('ids').split(',')]
-                d['pokemons'] = Pokemon.get_active_by_id(ids, swLat, swLng,
-                                                         neLat, neLng)
-            else:
-                d['pokemons'] = Pokemon.get_active(swLat, swLng, neLat, neLng)
+        session = request.headers.get('session')
+        # log.info(session)
 
-        if request.args.get('pokestops', 'false') == 'true':
-            d['pokestops'] = Pokestop.get_stops(swLat, swLng, neLat, neLng)
+        if Session.verify_session(session):
+            d['response'] = "accepted"
+            if request.args.get('pokemon', 'true') == 'true':
+                if request.args.get('ids'):
+                    ids = [int(x) for x in request.args.get('ids').split(',')]
+                    d['pokemons'] = Pokemon.get_active_by_id(ids, swLat, swLng,
+                                                             neLat, neLng)
+                else:
+                    d['pokemons'] = Pokemon.get_active(swLat, swLng, neLat, neLng)
 
-        if request.args.get('gyms', 'true') == 'true':
-            d['gyms'] = Gym.get_gyms(swLat, swLng, neLat, neLng)
+            if request.args.get('pokestops', 'false') == 'true':
+                d['pokestops'] = Pokestop.get_stops(swLat, swLng, neLat, neLng)
 
-        if request.args.get('scanned', 'true') == 'true':
-            d['scanned'] = ScannedLocation.get_recent(swLat, swLng, neLat,
-                                                      neLng)
+            if request.args.get('gyms', 'true') == 'true':
+                d['gyms'] = Gym.get_gyms(swLat, swLng, neLat, neLng)
+
+            if request.args.get('scanned', 'true') == 'true':
+                d['scanned'] = ScannedLocation.get_recent(swLat, swLng, neLat,
+                                                          neLng)
+        else:
+            d['response'] = "fail"
 
         return jsonify(d)
 
