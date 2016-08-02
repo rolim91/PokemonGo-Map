@@ -17,7 +17,7 @@ html, body {
   height: 100%;
 }
 
-#header, #map, #footer {
+#header, #map, #footer, #login {
 	position: absolute;
 }
 
@@ -26,8 +26,17 @@ html, body {
 	width: 100%;
 }
 
-#map {
+#map{
 	top: 3.5em;
 	bottom: 0px;
   width: 100%;
+}
+
+#login {
+  left: 0;
+  right: 0;
+  margin: auto;
+  top: 3.5em;
+  bottom: 0px;
+  width: 60%;
 }
